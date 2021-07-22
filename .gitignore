@@ -127,3 +127,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Credentials, etc
+creds
+*.ca
+*.pem
+*.crt
+data/ # SCOTUS database data, Caselaw Access Project Data that was injested to mongodb
+/data
