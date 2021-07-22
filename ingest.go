@@ -63,12 +63,12 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	/*
-	casesReference, err = getDistrict(casesReference, "./data/")
+	
+	districtCaseReference, err := getDistrict("./data/fdcdata.csv")
 	if err != nil {
 		log.Println(err)
-	} */
-	fmt.Println(len(circuitCaseReference))
+	}
+	fmt.Println(districtCaseReference[[2]string{"028", "1932-7"}])
 }
 
 func readScotusReference(path string)  (map[string]string, error) {
@@ -461,3 +461,43 @@ func getNewCircuit(path string, courtReference map[[2]string]map[string]interfac
 
 }
 
+func getDistrict(path string) (map[[2]string]map[string]interface{}, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	csvReader := csv.NewReader(file)
+	n := 0
+	courtReference := make(map[[2]string]map[string]interface{})
+	lines, err := csvReader.ReadAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	header := lines[0][1:]
+	for _, line := range lines[1:] {
+		casenum := strings.Split(line[12], ".")
+		year := strings.Split(line[8], ".")[0]
+		month := strings.Split(line[7], ".")[0]
+		index := [2]string{casenum[0][len(casenum[0])-3:], (year + "-" + month)}
+		courtReference[index] = make(map[string]interface{})
+		courtReference[index]["opinion"] = ""
+		for i, v := range line[1:] {
+			if v == "" {
+				courtReference[index][header[i]] = nil
+			} else {
+				vv, err := strconv.ParseInt((strings.Split(v, "."))[0], 10, 64)
+				if err != nil {
+					log.Fatal(err)
+				}
+				courtReference[index][header[i]] = vv
+			}
+		
+		}
+	n++
+	}
+	return courtReference, nil
+
+}
