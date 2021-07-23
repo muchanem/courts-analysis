@@ -19,7 +19,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"strings"
 	"bufio"
-	"io/ioutil"
 
 )
 
@@ -37,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer client.Disconnect(ctx)
-/* 
+
 	scotusReference, err := readScotusReference("./data/scdb_matchup_2020-01-16.csv")
 	if err != nil {
 		log.Println(err)
@@ -50,8 +49,7 @@ func main() {
 	scotusCaseReference, err = getOldScotus(scotusReference, "./data/SCDB_Legacy_06_justiceCentered_Citation.csv", scotusCaseReference) 
 	if err != nil {
 		log.Println(err)
-	} */
-
+	} 
 	circuitCaseReference, err := getOldCircuit("./data/cta96.csv")
 	if err != nil {
 		log.Println(err)
@@ -62,56 +60,22 @@ func main() {
 		log.Println(err)
 	} 
 	
-	circuitJudgeReference, _, err := getCircuitJudge("./data/appct_judges.csv", "./data/justicesdata2021.csv")
+	circuitJudgeReference, scotusJudgeReference, err := getCircuitJudge("./data/appct_judges.csv", "./data/justicesdata2021.csv")
 	if err != nil {
 		log.Println(err)
-	}
-	/*
+	} 
+
 	districtCaseReference, err := getDistrict("./data/fdcdata.csv")
 	if err != nil {
 		log.Println(err)
-	} */
-
-	nfib, err := ioutil.ReadFile("./data/nfib")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fCase := make(map[string]interface{})
-	err = json.Unmarshal(nfib, &fCase)
-	if err != nil {
-		log.Fatal(err)
-	}
-	circuitJudgeReference, circuitCaseReference = attachCircuit(circuitJudgeReference, circuitCaseReference, fCase)
-	index := [2]string{"260", "1996-06-20"}
-	//scotusCaseReference, circuitCaseReference, districtCaseReference  = attachOpinions("./data/us_text_20200604/data/data.jsonl", scotusJudgeReference, scotusCaseReference, circuitJudgeReference, circuitCaseReference, districtCaseReference)
-	//sendScotus(scotusCaseReference, client)
-	//sendCircuit(map[[2]string]map[string]interface{}{index: circuitCaseReference[index]}, client)
-	/*	
-
-	for s, c := range scotusCaseReference {
-		for v, o := range c["votes"].(map[int64]map[string]interface{}) {
-			scotusCases = append(scotusCases, append(scotusCaseReference[s], o...))
-		}
-	}	
-
-	for i, r := range circuitCaseReference {
-		for v, o := range r["votes"].(map[int64]map[string]interface{}) {
-			for k, i := range o {
-				nKey := k[2:]
-				o[nKey] = o[k]
-				delete(o, k)
-			}
-			circuitCases = append(circuitCases, append(circuitCaseReference[i], o...))
-		}
-	}	
-
-	for d, t := range districtCaseReference {
-		districtCases = append(districtCases, t)
 	}
 
-	sendScotus(scotusCases, client)
-	sendCircuit(circuitCases, client)
-	sendDistrict(districtCases, client) */
+	scotusCaseReference, circuitCaseReference, districtCaseReference  = attachOpinions("./data/us_text_20200604/data/data.jsonl", scotusJudgeReference, scotusCaseReference, circuitJudgeReference, circuitCaseReference, districtCaseReference)
+	
+	sendScotus(scotusCaseReference, client)
+	sendCircuit(circuitCaseReference, client)
+	sendDistrict(districtCaseReference, client)
+
 }
 
 func readScotusReference(path string)  (map[string]string, error) {
@@ -794,10 +758,17 @@ func attachDistrict(districtReference map[[2]string]map[string]interface{}, dist
 		log.Fatal(err)
 	}
 	dateF := datePF.Format("2006-1")
-	if matchedCase, exists := districtReference[[2]string{districtCase["last_page"].(string), dateF}]; exists {
-		matchedCase["opinion"] = districtCase["opinions"].([]map[string]string)[0]["text"]
-		matchedCase["harvardID"] = districtCase["id"].(int64)
-		matchedCase["cite"], matchedCase["name"], matchedCase["name_abv"] = districtCase["citations"].([]map[string]string)[0]["cite"], districtCase["name"].(string), districtCase["name_abbreviation"].(string)
+	if matchedCase, exists := districtReference[[2]string{districtCase["first_page"].(string), dateF}]; exists {
+		matchedCase["opinion"] = districtCase["casebody"].(map[string]interface{})["data"].(map[string]interface{})["opinions"].([]interface{})[0].(map[string]interface{})["text"].(string)
+		err := errors.New("")
+		matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", districtCase["id"].(float64)), 10, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		matchedCase["cite"] = districtCase["citations"].([]interface{})[0].(map[string]interface{})["cite"].(string)
+		matchedCase["name"] = districtCase["name"].(string)
+		matchedCase["name_abv"] = districtCase["name_abbreviation"].(string)
+
 	}
 	return districtReference
 }
@@ -836,6 +807,7 @@ func attachOpinions(path string, scotusJudgeReference map[int64]string, scotusRe
 	}
 	return scotusReference, circuitReference, districtReference
 }
+
 func sendScotus(scotusCaseReference map[string]map[string]interface{}, client *mongo.Client) {
 	return
 	db := client.Database("scotus")	
@@ -876,11 +848,11 @@ func sendCircuit(circuitCaseReference map[[2]string]map[string]interface{}, clie
 	}
 }
 
-func sendDistrict(districtCases []map[string]interface{}, client *mongo.Client) {
-	db := client.Database("district")	
-	for _, v := range districtCases {
-		coll := db.Collection(v["judge"])
-		_, err := coll.InsertOne(context.TODO(), v)
+func sendDistrict(districtCaseReference map[[2]string]map[string]interface{}, client *mongo.Client) {
+	db := client.Database("admin")	
+	for _, c := range districtCaseReference {
+		coll := db.Collection(strconv.Itoa(int(c["judge"].(int64))))
+		_, err := coll.InsertOne(context.TODO(), c)
 		if err != nil {
 			log.Fatal(err)
 		}
