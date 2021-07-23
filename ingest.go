@@ -37,7 +37,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer client.Disconnect(ctx)
- 
+/* 
 	scotusReference, err := readScotusReference("./data/scdb_matchup_2020-01-16.csv")
 	if err != nil {
 		log.Println(err)
@@ -50,9 +50,8 @@ func main() {
 	scotusCaseReference, err = getOldScotus(scotusReference, "./data/SCDB_Legacy_06_justiceCentered_Citation.csv", scotusCaseReference) 
 	if err != nil {
 		log.Println(err)
-	}
+	} */
 
-	/*
 	circuitCaseReference, err := getOldCircuit("./data/cta96.csv")
 	if err != nil {
 		log.Println(err)
@@ -61,9 +60,9 @@ func main() {
 	circuitCaseReference, err = getNewCircuit("./data/cta02.csv", circuitCaseReference)
 	if err != nil {
 		log.Println(err)
-	} */
+	} 
 	
-	_, scotusJudgeReference, err := getCircuitJudge("./data/appct_judges.csv", "./data/justicesdata2021.csv")
+	circuitJudgeReference, _, err := getCircuitJudge("./data/appct_judges.csv", "./data/justicesdata2021.csv")
 	if err != nil {
 		log.Println(err)
 	}
@@ -73,7 +72,6 @@ func main() {
 		log.Println(err)
 	} */
 
-	index := ""
 	nfib, err := ioutil.ReadFile("./data/nfib")
 	if err != nil {
 		log.Fatal(err)
@@ -83,9 +81,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	circuitJudgeReference, circuitCaseReference = attachCircuit(circuitJudgeReference, circuitCaseReference, fCase)
+	index := [2]string{"260", "1996-06-20"}
 	//scotusCaseReference, circuitCaseReference, districtCaseReference  = attachOpinions("./data/us_text_20200604/data/data.jsonl", scotusJudgeReference, scotusCaseReference, circuitJudgeReference, circuitCaseReference, districtCaseReference)
 	//sendScotus(scotusCaseReference, client)
-
+	//sendCircuit(map[[2]string]map[string]interface{}{index: circuitCaseReference[index]}, client)
 	/*	
 
 	for s, c := range scotusCaseReference {
@@ -397,6 +397,10 @@ func getOldCircuit(path string) (map[[2]string]map[string]interface{}, error) {
 			if v == "" {
 				continue
 			}
+			vi, err := strconv.ParseInt(v, 10, 64) 
+			if err != nil {
+				log.Fatal(err)
+			}
 			if strings.Contains(header[155+k], "code") {
 				justice, err = strconv.ParseInt(line[156+k],10,64)
 				if err != nil {
@@ -404,9 +408,9 @@ func getOldCircuit(path string) (map[[2]string]map[string]interface{}, error) {
 				}
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)] = make(map[string]interface{})
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)]["opinion"] = "" 
-				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[155+k][4:] + "code"] = v
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[155+k][4:] + "code"] = vi
 			} else {
-				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[155+k]] = v
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[155+k]] = vi
 			}
 		}
 		for j, m := range line[228:] {
@@ -490,6 +494,10 @@ func getNewCircuit(path string, courtReference map[[2]string]map[string]interfac
 			if v == "" {
 				continue
 			}
+			vi, err := strconv.ParseInt(v, 10, 64) 
+			if err != nil {
+				log.Fatal(err)
+			}
 			if strings.Contains(header[179+k], "code") {
 				justice, err = strconv.ParseInt(line[180+k],10,64)
 				if err != nil {
@@ -497,9 +505,9 @@ func getNewCircuit(path string, courtReference map[[2]string]map[string]interfac
 				}
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)] = make(map[string]interface{})
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)]["opinion"] = "" 
-				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[179+k][4:]+"code"] = v 
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[179+k][4:]+"code"] = vi
 			} else {
-				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[179+k]] = v
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[179+k]] = vi
 			}
 		}
 	n++
@@ -564,8 +572,10 @@ func getCircuitJudge(cpath string, spath string)  (map[int64]string, map[int64]s
 		log.Fatal(err)
 	}
 	for _, line := range lines[1:] {
-		
-		id, err := strconv.ParseInt(line[2], 10, 64)
+		if line[28] == "" {
+			continue
+		}	
+		id, err := strconv.ParseInt(line[28], 10, 64)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -706,18 +716,26 @@ func findVoteCode(votes map[string]interface{}) string {
 func attachCircuit(circuitJudgeReference map[int64]string, circuitReference map[[2]string]map[string]interface{}, circuitCase map[string]interface{}) (map[int64]string, map[[2]string]map[string]interface{}) {
 	if matchedCase, exists := circuitReference[[2]string{circuitCase["first_page"].(string), circuitCase["decision_date"].(string)}]; exists {
 		JudgeLoop:
-			for judge, values := range matchedCase["votes"].(map[int64]map[string]interface{})	{
+			for judge, values := range matchedCase["votes"].(map[int]map[string]interface{})	{
 				// check for a cited name
-				for _, opinion := range circuitCase["opinions"].([]map[string]string) {
+				opinions := circuitCase["casebody"].(map[string]interface{})["data"].(map[string]interface{})["opinions"].([]interface{})
+				for _, opinion := range opinions {
+					fOpinion := opinion.(map[string]interface{})
 					JudgeUpNameLoop:	
-					for _, m := range circuitAuthorString(opinion["author"]) {
-						curJudgeName := circuitJudgeReference[judge]
+					for _, m := range circuitAuthorString(fOpinion["author"].(string)) {
+						curJudgeName := circuitJudgeReference[int64(judge)]
 						JudgeNameLoop:
 						for i, g := range m {
-							if strings.Contains(curJudgeName, g) && i == (len(g) - 1) {
-								values["opinion"] = opinion["text"]
-								matchedCase["harvardID"] = circuitCase["id"].(int64)
-								matchedCase["cite"], matchedCase["name"], matchedCase["name_abv"] = circuitCase["citations"].([]map[string]string)[0]["cite"], circuitCase["name"].(string), circuitCase["name_abbreviation"].(string)
+							if strings.Contains(curJudgeName, g) && i == (len(m) - 1) {
+								values["opinion"] = fOpinion["text"].(string)
+								err := errors.New("")
+								matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", circuitCase["id"].(float64)), 10, 64)
+								if err != nil {
+									log.Fatal(err)
+								}
+								matchedCase["cite"] = circuitCase["citations"].([]interface{})[0].(map[string]interface{})["cite"].(string)
+								matchedCase["name"] = circuitCase["name"].(string)
+								matchedCase["name_abv"] = circuitCase["name_abbreviation"].(string)
 								continue JudgeLoop
 							} else if strings.Contains(curJudgeName, g) {
 								continue JudgeNameLoop
@@ -730,27 +748,41 @@ func attachCircuit(circuitJudgeReference map[int64]string, circuitReference map[
 				voteCode := findVoteCode(values)
 				// if majority, grab majority opinion
 				if values[voteCode].(int64) == int64(1) {
-					for _, opinion := range circuitCase["opinions"].([]map[string]string) {
-						if opinion["type"] == "majority" {
-							values["opinion"] = opinion["text"]
-							matchedCase["harvardID"] = circuitCase["id"].(int64)
-							matchedCase["cite"], matchedCase["name"], matchedCase["name_abv"] = circuitCase["citations"].([]map[string]string)[0]["cite"], circuitCase["name"].(string), circuitCase["name_abbreviation"].(string)
+					for _, opinion := range opinions {
+						fOpinion := opinion.(map[string]interface{})
+						if fOpinion["type"].(string) == "majority" {
+							values["opinion"] = fOpinion["text"].(string)
+							err := errors.New("")
+							matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", circuitCase["id"].(float64)), 10, 64)
+							if err != nil {
+								log.Fatal(err)
+							}
+							matchedCase["cite"] = circuitCase["citations"].([]interface{})[0].(map[string]interface{})["cite"].(string)
+							matchedCase["name"] = circuitCase["name"].(string)
+							matchedCase["name_abv"] = circuitCase["name_abbreviation"].(string)
 							continue JudgeLoop
 						}
 					} 
 				}
 				// if dissent, grab dissent opinion
 				if ((values[voteCode].(int64) == int64(2))) {
-					for _, opinion := range circuitCase["opinions"].([]map[string]string) {
-						if opinion["type"] == "dissent" {
-							values["opinion"] = opinion["text"]
-							matchedCase["harvardID"] = circuitCase["id"].(int64)
-							matchedCase["cite"], matchedCase["name"], matchedCase["name_abv"] = circuitCase["citations"].([]map[string]string)[0]["cite"], circuitCase["name"].(string), circuitCase["name_abbreviation"].(string)
+					for _, opinion := range opinions {
+						fOpinion := opinion.(map[string]interface{})
+						if fOpinion["type"].(string) == "dissent" {
+							values["opinion"] = fOpinion["text"].(string)
+							err := errors.New("")
+							matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", circuitCase["id"].(float64)), 10, 64)
+							if err != nil {
+								log.Fatal(err)
+							}
+							matchedCase["cite"] = circuitCase["citations"].([]interface{})[0].(map[string]interface{})["cite"].(string)
+							matchedCase["name"] = circuitCase["name"].(string)
+							matchedCase["name_abv"] = circuitCase["name_abbreviation"].(string)
 							continue JudgeLoop
 						}
 					} 
 				}
-				fmt.Println("No opinion found, judge: " + circuitJudgeReference[judge] + " case: " + circuitCase["citations"].([]map[string]string)[0]["cite"])
+				fmt.Println("No opinion found, judge: " + circuitJudgeReference[int64(judge)] + " case: " +  circuitCase["citations"].([]interface{})[0].(map[string]interface{})["cite"].(string))
 			} 
 		}
 	return circuitJudgeReference, circuitReference
@@ -792,12 +824,10 @@ func attachOpinions(path string, scotusJudgeReference map[int64]string, scotusRe
 			scotusJudgeReference, scotusReference = attachScotus(scotusJudgeReference, scotusReference, fCase) 
 			continue
 		} else if strings.Contains(court, "Appeals") {
-			continue	
-			//circuitJudgeReference, circuitReference = attachCircuit(circuitJudgeReference, circuitReference, fCase)
-			//continue
+			circuitJudgeReference, circuitReference = attachCircuit(circuitJudgeReference, circuitReference, fCase)
+			continue
 		} else if strings.Contains(court, "District") {
-			//continue	
-			//districtReference = attachDistrict(districtReference, fCase)
+			districtReference = attachDistrict(districtReference, fCase)
 		}
 	}
 
@@ -808,7 +838,7 @@ func attachOpinions(path string, scotusJudgeReference map[int64]string, scotusRe
 }
 func sendScotus(scotusCaseReference map[string]map[string]interface{}, client *mongo.Client) {
 	return
-	db := client.Database("admin")	
+	db := client.Database("scotus")	
 	for _, c := range scotusCaseReference {
 		for _, o := range c["votes"].(map[int]map[string]interface{}) {
 			vote := c
@@ -824,14 +854,24 @@ func sendScotus(scotusCaseReference map[string]map[string]interface{}, client *m
 		}
 	}
 }
-/*
-func sendCircuit(circuitCases []map[string]interface{}, client *mongo.Client) {
+
+func sendCircuit(circuitCaseReference map[[2]string]map[string]interface{}, client *mongo.Client) {
 	db := client.Database("circuit")	
-	for _, v := range circuitCases {
-		coll := db.Collection(v["code"])
-		_, err := coll.InsertOne(context.TODO(), v)
-		if err != nil {
-			log.Fatal(err)
+	for _, c := range circuitCaseReference {
+		for _, o := range c["votes"].(map[int]map[string]interface{}) {
+			vote := c
+			for k, b := range o {
+				if k != "opinion" {
+					vote[k[2:]] = b
+				}
+				vote[k]	= b
+			}
+			delete(vote, "votes")
+			coll := db.Collection(strconv.Itoa(int(vote["code"].(int64))))
+			_, err := coll.InsertOne(context.TODO(), vote)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 }
@@ -845,4 +885,4 @@ func sendDistrict(districtCases []map[string]interface{}, client *mongo.Client) 
 			log.Fatal(err)
 		}
 	}
-} */
+}
