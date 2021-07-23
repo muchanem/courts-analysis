@@ -714,6 +714,9 @@ func attachCircuit(circuitJudgeReference map[int64]string, circuitReference map[
 				}
 				voteCode := findVoteCode(values)
 				// if majority, grab majority opinion
+				if values[voteCode] == nil {
+					continue JudgeLoop
+				}
 				if values[voteCode].(int64) == int64(1) {
 					for _, opinion := range opinions {
 						fOpinion := opinion.(map[string]interface{})
