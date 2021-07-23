@@ -45,11 +45,11 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	
+/*	
 	scotusCaseReference, err = getOldScotus(scotusReference, "./data/SCDB_Legacy_06_justiceCentered_Citation.csv", scotusCaseReference) 
 	if err != nil {
 		log.Println(err)
-	} 
+	}  */
 	circuitCaseReference, err := getOldCircuit("./data/cta96.csv")
 	if err != nil {
 		log.Println(err)
@@ -213,7 +213,6 @@ func getOldScotus(scotusReference map[string]string, path string, courtReference
 	if err != nil {
 		log.Fatal(err)
 	}
-	Lines:
 	for _, line := range lines {
 		header := lines[0]
 		
@@ -282,10 +281,6 @@ func getOldScotus(scotusReference map[string]string, path string, courtReference
 				case 1:
 					courtReference[scotusReference[line[0]]]["votes"].(map[int]map[string]interface{})[int(justice)][header[53+k]] = v 
 				}	
-			}
-			if courtReference[scotusReference[line[0]]]["votes"].(map[int]map[string]interface{})[int(justice)]["vote"] == nil {
-				delete(courtReference, scotusReference[line[0]])
-				continue Lines
 			}
 		}
 	n++
@@ -690,6 +685,9 @@ func attachCircuit(circuitJudgeReference map[int64]string, circuitReference map[
 				opinions := circuitCase["casebody"].(map[string]interface{})["data"].(map[string]interface{})["opinions"].([]interface{})
 				for _, opinion := range opinions {
 					fOpinion := opinion.(map[string]interface{})
+					if fOpinion["author"] == nil {
+						break JudgeLoop
+					}
 					JudgeUpNameLoop:	
 					for _, m := range circuitAuthorString(fOpinion["author"].(string)) {
 						curJudgeName := circuitJudgeReference[int64(judge)]
