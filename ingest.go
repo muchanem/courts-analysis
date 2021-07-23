@@ -45,11 +45,11 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-/*	
+	
 	scotusCaseReference, err = getOldScotus(scotusReference, "./data/SCDB_Legacy_06_justiceCentered_Citation.csv", scotusCaseReference) 
 	if err != nil {
 		log.Println(err)
-	}  */
+	} 
 	circuitCaseReference, err := getOldCircuit("./data/cta96.csv")
 	if err != nil {
 		log.Println(err)
@@ -631,6 +631,9 @@ func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[str
 						}
 					}
 					// default to majority opinion
+					if values["vote"] == nil {
+						continue JudgeLoop
+					}
 					if ((values["vote"].(int64) == int64(1))) {
 						for _, opinion := range opinions {
 							fOpinion := opinion.(map[string]interface{})
