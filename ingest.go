@@ -753,11 +753,11 @@ func attachCircuit(circuitJudgeReference map[int64]string, circuitReference map[
 }
 
 func attachDistrict(districtReference map[[2]string]map[string]interface{}, districtCase map[string]interface{}) (map[[2]string]map[string]interface{}) {
-	datePF, err := time.Parse("2006-01-02", districtCase["decision_date"].(string))
-	if err != nil {
-		log.Fatal(err)
+	datePF := strings.Split(districtCase["decision_date"].(string), "-")
+	for i, v := range datePF {
+		datePF[i] = strings.TrimLeft(v, "0")
 	}
-	dateF := datePF.Format("2006-1")
+	dateF := datePF[0] + "-" + datePF[1]
 	if matchedCase, exists := districtReference[[2]string{districtCase["first_page"].(string), dateF}]; exists {
 		matchedCase["opinion"] = districtCase["casebody"].(map[string]interface{})["data"].(map[string]interface{})["opinions"].([]interface{})[0].(map[string]interface{})["text"].(string)
 		err := errors.New("")
