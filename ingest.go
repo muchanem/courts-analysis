@@ -23,7 +23,6 @@ import (
 )
 
 func main() {
-	
 	un, pwd, host, _, _, prot, cert := os.Getenv("USERNAME"), os.Getenv("PASSWORD"), os.Getenv("HOST"), os.Getenv("PORT"), os.Getenv("DATABASE"), os.Getenv("PROTOCOL"), os.Getenv("CERT") 
 	connecstring := prot + "://" + un + ":"  + pwd + "@" + host + "?authSource=admin&replicaSet=simons-database&tls=true&tlsCAFile=" + cert
 	client, err := mongo.NewClient(options.Client().ApplyURI(connecstring))
@@ -71,7 +70,7 @@ func main() {
 	}
 
 	scotusCaseReference, circuitCaseReference, districtCaseReference  = attachOpinions("./data/us_text_20200604/data/data.jsonl", scotusJudgeReference, scotusCaseReference, circuitJudgeReference, circuitCaseReference, districtCaseReference)
-	
+	fmt.Println("complete")	
 	sendScotus(scotusCaseReference, client)
 	sendCircuit(circuitCaseReference, client)
 	sendDistrict(districtCaseReference, client)
@@ -583,12 +582,19 @@ func scotusAuthorString(authors string) []string {
 		eauthor := strings.Split(v, " ")
 		pauthors[i] = eauthor[len(eauthor) - 1]
 	}
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
+	pauthors = authorStringRM(pauthors)
 	for i, v := range pauthors {
+		v = strings.ReplaceAll(v, "’", "'")
 		pauthors[i] = strings.ToLower(v)
-		if v == "" {
-			pauthors[i] = pauthors[len(pauthors)-1]
-			pauthors = pauthors[:len(pauthors)-1]
-		}
 	}
 	return pauthors
 }
@@ -601,6 +607,9 @@ func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[str
 					// check for a cited name
 					for _, opinion := range opinions {
 						fOpinion := opinion.(map[string]interface{})
+						if fOpinion["author"] == nil {
+							continue
+						}	
 						for _, m := range scotusAuthorString(fOpinion["author"].(string)) {
 							if strings.Contains(scotusJudgeReference[values["justice"].(int64)], m) {
 								values["opinion"] = fOpinion["text"].(string)
@@ -617,6 +626,9 @@ func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[str
 					if values["firstAgreement"] != nil {
 						for _, opinion := range opinions {
 							fOpinion := opinion.(map[string]interface{})
+							if fOpinion["author"] == nil {
+								continue
+							}	
 							for _, m := range scotusAuthorString(fOpinion["author"].(string)) {
 								if strings.Contains(scotusJudgeReference[values["firstAgreement"].(int64)], m) {
 									values["opinion"] = fOpinion["text"].(string)
@@ -634,10 +646,35 @@ func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[str
 					if values["vote"] == nil {
 						continue JudgeLoop
 					}
-					if ((values["vote"].(int64) == int64(1))) {
+					if ((values["vote"].(int64) == int64(1))) || ((values["vote"].(int64) == int64(3))) || ((values["vote"].(int64) == int64(4))) {
 						for _, opinion := range opinions {
 							fOpinion := opinion.(map[string]interface{})
+							if fOpinion["type"] == nil {
+								continue
+							}	
 							if fOpinion["type"].(string) == "majority" {
+								values["opinion"] = fOpinion["text"].(string)
+								err := errors.New("")
+								matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", scotusCase["id"].(float64)), 10, 64)
+								if err != nil {
+									log.Fatal(err)
+								}
+								continue JudgeLoop
+							}
+						} 
+					} 
+				
+							// default to first dissent as well
+					if values["vote"] == nil {
+						continue JudgeLoop
+					}
+					if ((values["vote"].(int64) == int64(2))) {
+						for _, opinion := range opinions {
+							fOpinion := opinion.(map[string]interface{})
+							if fOpinion["type"] == nil {
+								continue
+							}
+							if strings.Contains(fOpinion["type"].(string), "dissent") {
 								values["opinion"] = fOpinion["text"].(string)
 								err := errors.New("")
 								matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", scotusCase["id"].(float64)), 10, 64)
@@ -656,21 +693,46 @@ func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[str
 
 func circuitAuthorString(authors string) [][]string {
 	authorss := strings.Split(authors, ",")
-	pauthors := make([]string, len(authorss))
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
+	authorss = authorStringRM(authorss)
 	for i, v := range authorss {
-		pauthors[i] = strings.ToLower(v)
-		if ((v == "") || (strings.Contains(v, "Judge"))) {
-			pauthors[i] = pauthors[len(pauthors)-1]
-			pauthors = pauthors[:len(pauthors)-1]
-		}
+		authorss[i] = strings.ToLower(v)
 	}
-	fauthors := make([][]string, len(pauthors))
-	for i, v := range pauthors {
+	fauthors := make([][]string, len(authorss))
+	for i, v := range authorss {
 		fauthors[i] = make([]string, len(strings.Fields(v)))
 		fauthors[i] = strings.Fields(v)
 	}
 	return fauthors
+
 }
+
+func authorStringRM(authorss []string) []string {
+	for i, v := range authorss {
+		if i > (len(authorss) -1) {
+			break
+		}
+		if ((v == "") || (strings.Contains(v, "Judge")) || (strings.Contains(v, "Justice"))) {
+			authorss[i] = authorss[len(authorss)-1]
+			authorss[len(authorss)-1] = ""
+			authorss = authorss[:len(authorss)-1]
+		}
+	}
+	return authorss
+}
+
 func findVoteCode(votes map[string]interface{}) string {
 	for i := range votes {
 		if strings.Contains(i, "maj") {
@@ -723,6 +785,9 @@ func attachCircuit(circuitJudgeReference map[int64]string, circuitReference map[
 				if values[voteCode].(int64) == int64(1) {
 					for _, opinion := range opinions {
 						fOpinion := opinion.(map[string]interface{})
+						if fOpinion["type"] == nil {
+							continue
+						}
 						if fOpinion["type"].(string) == "majority" {
 							values["opinion"] = fOpinion["text"].(string)
 							err := errors.New("")
@@ -741,7 +806,10 @@ func attachCircuit(circuitJudgeReference map[int64]string, circuitReference map[
 				if ((values[voteCode].(int64) == int64(2))) {
 					for _, opinion := range opinions {
 						fOpinion := opinion.(map[string]interface{})
-						if fOpinion["type"].(string) == "dissent" {
+						if fOpinion["type"] == nil {
+							continue
+						}
+						if strings.Contains(fOpinion["type"].(string),"dissent") {
 							values["opinion"] = fOpinion["text"].(string)
 							err := errors.New("")
 							matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", circuitCase["id"].(float64)), 10, 64)
@@ -766,17 +834,26 @@ func attachDistrict(districtReference map[[2]string]map[string]interface{}, dist
 	for i, v := range datePF {
 		datePF[i] = strings.TrimLeft(v, "0")
 	}
+	if len(datePF) < 2 {
+		return districtReference
+	}
 	dateF := datePF[0] + "-" + datePF[1]
 	if matchedCase, exists := districtReference[[2]string{districtCase["first_page"].(string), dateF}]; exists {
-		matchedCase["opinion"] = districtCase["casebody"].(map[string]interface{})["data"].(map[string]interface{})["opinions"].([]interface{})[0].(map[string]interface{})["text"].(string)
-		err := errors.New("")
-		matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", districtCase["id"].(float64)), 10, 64)
-		if err != nil {
-			log.Fatal(err)
-		}
-		matchedCase["cite"] = districtCase["citations"].([]interface{})[0].(map[string]interface{})["cite"].(string)
-		matchedCase["name"] = districtCase["name"].(string)
-		matchedCase["name_abv"] = districtCase["name_abbreviation"].(string)
+		if opinions, ok :=  districtCase["casebody"].(map[string]interface{})["data"].(map[string]interface{})["opinions"]; ok {
+			if len(opinions.([]interface{})) == 0 {
+				return districtReference
+			}
+			matchedCase["opinion"] = opinions.([]interface{})[0].(map[string]interface{})["text"].(string)
+			err := errors.New("")
+			matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", districtCase["id"].(float64)), 10, 64)
+			if err != nil {
+				log.Fatal(err)
+			}
+			matchedCase["cite"] = districtCase["citations"].([]interface{})[0].(map[string]interface{})["cite"].(string)
+			matchedCase["name"] = districtCase["name"].(string)
+			matchedCase["name_abv"] = districtCase["name_abbreviation"].(string)
+		}	
+
 
 	}
 	return districtReference
