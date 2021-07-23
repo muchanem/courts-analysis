@@ -135,3 +135,4 @@ creds
 *.crt
 data/ # SCOTUS database data, Caselaw Access Project Data that was injested to mongodb
 /data
+ingest # ingest compiled file
