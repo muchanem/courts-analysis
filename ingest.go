@@ -8,24 +8,23 @@ import (
 	"fmt"
 	"os"
 	"log"
-	//"time"
-	//"context"
+	"time"
+	"context"
 	"encoding/csv"
 	"io"
 	"strconv"
 	"errors"
-	//"go.mongodb.org/mongo-driver/mongo"
-	//"go.mongodb.org/mongo-driver/mongo/options"
-	//"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"strings"
-	"time"
 	"bufio"
+	"io/ioutil"
 
 )
 
 func main() {
-/*	
+	
 	un, pwd, host, _, _, prot, cert := os.Getenv("USERNAME"), os.Getenv("PASSWORD"), os.Getenv("HOST"), os.Getenv("PORT"), os.Getenv("DATABASE"), os.Getenv("PROTOCOL"), os.Getenv("CERT") 
 	connecstring := prot + "://" + un + ":"  + pwd + "@" + host + "?authSource=admin&replicaSet=simons-database&tls=true&tlsCAFile=" + cert
 	client, err := mongo.NewClient(options.Client().ApplyURI(connecstring))
@@ -38,7 +37,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer client.Disconnect(ctx)
-*/ /*
+ 
 	scotusReference, err := readScotusReference("./data/scdb_matchup_2020-01-16.csv")
 	if err != nil {
 		log.Println(err)
@@ -47,15 +46,13 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	fmt.Println(len(scotusCaseReference))
+	
 	scotusCaseReference, err = getOldScotus(scotusReference, "./data/SCDB_Legacy_06_justiceCentered_Citation.csv", scotusCaseReference) 
 	if err != nil {
 		log.Println(err)
 	}
 
-	fmt.Println(len(scotusCaseReference))
-	fmt.Println(scotusCaseReference["12407356"])
-*/ /*
+	/*
 	circuitCaseReference, err := getOldCircuit("./data/cta96.csv")
 	if err != nil {
 		log.Println(err)
@@ -66,21 +63,31 @@ func main() {
 		log.Println(err)
 	} */
 	
-	circuitJudgeReference, scotusJudgeReference, err := getCircuitJudge("./data/appct_judges.csv", "./data/justicesdata2021.csv")
+	_, scotusJudgeReference, err := getCircuitJudge("./data/appct_judges.csv", "./data/justicesdata2021.csv")
 	if err != nil {
 		log.Println(err)
 	}
-    /*
+	/*
 	districtCaseReference, err := getDistrict("./data/fdcdata.csv")
 	if err != nil {
 		log.Println(err)
 	} */
 
-	scotusCaseReference, circuitCaseReference, districtCaseReference  = attachOpinions("./data", scotusJudgeReference, scotusCaseReference, circuitCaseReference, circuitJudgeReference, districtCaseReference)
+	index := ""
+	nfib, err := ioutil.ReadFile("./data/nfib")
 	if err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
-	scotusCases, circuitCases, districtCases := make([]map[string]interface{}, 0), make([]map[string]interface{}, 0), make([]map[string]interface{}, 0)
+	fCase := make(map[string]interface{})
+	err = json.Unmarshal(nfib, &fCase)
+	if err != nil {
+		log.Fatal(err)
+	}
+	//scotusCaseReference, circuitCaseReference, districtCaseReference  = attachOpinions("./data/us_text_20200604/data/data.jsonl", scotusJudgeReference, scotusCaseReference, circuitJudgeReference, circuitCaseReference, districtCaseReference)
+	//sendScotus(scotusCaseReference, client)
+
+	/*	
+
 	for s, c := range scotusCaseReference {
 		for v, o := range c["votes"].(map[int64]map[string]interface{}) {
 			scotusCases = append(scotusCases, append(scotusCaseReference[s], o...))
@@ -104,7 +111,7 @@ func main() {
 
 	sendScotus(scotusCases, client)
 	sendCircuit(circuitCases, client)
-	sendDistrict(districtCases, client)
+	sendDistrict(districtCases, client) */
 }
 
 func readScotusReference(path string)  (map[string]string, error) {
@@ -397,8 +404,10 @@ func getOldCircuit(path string) (map[[2]string]map[string]interface{}, error) {
 				}
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)] = make(map[string]interface{})
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)]["opinion"] = "" 
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[155+k][4:] + "code"] = v
+			} else {
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[155+k]] = v
 			}
-			courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[155+k]] = v
 		}
 		for j, m := range line[228:] {
 			if m == "" {
@@ -488,8 +497,10 @@ func getNewCircuit(path string, courtReference map[[2]string]map[string]interfac
 				}
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)] = make(map[string]interface{})
 				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)]["opinion"] = "" 
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[179+k][4:]+"code"] = v 
+			} else {
+				courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[179+k]] = v
 			}
-			courtReference[index]["votes"].(map[int]map[string]interface{})[int(justice)][header[179+k]] = v
 		}
 	n++
 	}
@@ -609,26 +620,37 @@ func scotusAuthorString(authors string) []string {
 }
 
 func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[string]map[string]interface{}, scotusCase map[string]interface{}) (map[int64]string, map[string]map[string]interface{}) {
-		if matchedCase, exists := scotusReference[scotusCase["id"].(string)]; exists {
+		if matchedCase, exists := scotusReference[fmt.Sprintf("%.f", scotusCase["id"].(float64))]; exists {
 			JudgeLoop:
-				for _, values := range matchedCase["votes"].(map[int64]map[string]interface{})	{
+				for _, values := range matchedCase["votes"].(map[int]map[string]interface{})	{
+					opinions := scotusCase["casebody"].(map[string]interface{})["data"].(map[string]interface{})["opinions"].([]interface{})
 					// check for a cited name
-					for _, opinion := range scotusCase["opinions"].([]map[string]string) {
-						for _, m := range scotusAuthorString(opinion["author"]) {
+					for _, opinion := range opinions {
+						fOpinion := opinion.(map[string]interface{})
+						for _, m := range scotusAuthorString(fOpinion["author"].(string)) {
 							if strings.Contains(scotusJudgeReference[values["justice"].(int64)], m) {
-								values["opinion"] = opinion["text"]
-								matchedCase["harvardID"] = scotusCase["id"].(int64)
+								values["opinion"] = fOpinion["text"].(string)
+								err := errors.New("")
+								matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", scotusCase["id"].(float64)), 10, 64)
+								if err != nil {
+									log.Fatal(err)
+								}
 								continue JudgeLoop
 							}
 						} 
 					}
 					// check for an agreement
 					if values["firstAgreement"] != nil {
-						for _, opinion := range scotusCase["opinions"].([]map[string]string) {
-							for _, m := range scotusAuthorString(opinion["author"]) {
+						for _, opinion := range opinions {
+							fOpinion := opinion.(map[string]interface{})
+							for _, m := range scotusAuthorString(fOpinion["author"].(string)) {
 								if strings.Contains(scotusJudgeReference[values["firstAgreement"].(int64)], m) {
-									values["opinion"] = opinion["text"]
-									matchedCase["harvardID"] = scotusCase["id"].(int64)
+									values["opinion"] = fOpinion["text"].(string)
+									err := errors.New("")
+									matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", scotusCase["id"].(float64)), 10, 64)
+									if err != nil {
+										log.Fatal(err)
+									}
 									continue JudgeLoop
 								}
 							} 
@@ -636,17 +658,22 @@ func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[str
 					}
 					// default to majority opinion
 					if ((values["vote"].(int64) == int64(1))) {
-						for _, opinion := range scotusCase["opinions"].([]map[string]string) {
-							if opinion["type"] == "majority" {
-								values["opinion"] = opinion["text"]
-								matchedCase["harvardID"] = scotusCase["id"].(int64)
+						for _, opinion := range opinions {
+							fOpinion := opinion.(map[string]interface{})
+							if fOpinion["type"].(string) == "majority" {
+								values["opinion"] = fOpinion["text"].(string)
+								err := errors.New("")
+								matchedCase["harvardID"], err = strconv.ParseInt(fmt.Sprintf("%.f", scotusCase["id"].(float64)), 10, 64)
+								if err != nil {
+									log.Fatal(err)
+								}
 								continue JudgeLoop
 							}
 						} 
-					}
+					} 
 					fmt.Println("No opinion found, judge: " + values["justice"].(string) + " case: " + matchedCase["usCite"].(string))
 				} 
-			}
+		}
 		return scotusJudgeReference, scotusReference
 }
 
@@ -751,8 +778,8 @@ func attachOpinions(path string, scotusJudgeReference map[int64]string, scotusRe
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	buf := make([]byte, (256 * 1024))
-	scanner.Buffer(buf, (256*1024))
+	buf := make([]byte, 0, (256 * 1024))
+	scanner.Buffer(buf, (10*1024*1024))
 
 	for scanner.Scan() {
 		fCase := make(map[string]interface{})
@@ -765,10 +792,12 @@ func attachOpinions(path string, scotusJudgeReference map[int64]string, scotusRe
 			scotusJudgeReference, scotusReference = attachScotus(scotusJudgeReference, scotusReference, fCase) 
 			continue
 		} else if strings.Contains(court, "Appeals") {
-			circuitJudgeReference, circuitReference = attachCircuit(circuitJudgeReference, circuitReference, fCase)
-			continue
+			continue	
+			//circuitJudgeReference, circuitReference = attachCircuit(circuitJudgeReference, circuitReference, fCase)
+			//continue
 		} else if strings.Contains(court, "District") {
-			districtReference = attachDistrict(districtReference, fCase)
+			//continue	
+			//districtReference = attachDistrict(districtReference, fCase)
 		}
 	}
 
@@ -777,18 +806,25 @@ func attachOpinions(path string, scotusJudgeReference map[int64]string, scotusRe
 	}
 	return scotusReference, circuitReference, districtReference
 }
-
-func sendScotus(scotusCases []map[string]interface{}, client *mongo.Client) {
-	db := client.Database("scotus")	
-	for _, v := range scotusCases {
-		coll := db.Collection(v["justice"])
-		_, err := coll.InsertOne(context.TODO(), v)
-		if err != nil {
-			log.Fatal(err)
+func sendScotus(scotusCaseReference map[string]map[string]interface{}, client *mongo.Client) {
+	return
+	db := client.Database("admin")	
+	for _, c := range scotusCaseReference {
+		for _, o := range c["votes"].(map[int]map[string]interface{}) {
+			vote := c
+			for k, b := range o {
+				vote[k] = b
+			}
+			delete(vote, "votes")	
+			coll := db.Collection(strconv.Itoa(int(vote["justice"].(int64))))
+			_, err := coll.InsertOne(context.TODO(), vote)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 }
-
+/*
 func sendCircuit(circuitCases []map[string]interface{}, client *mongo.Client) {
 	db := client.Database("circuit")	
 	for _, v := range circuitCases {
@@ -809,4 +845,4 @@ func sendDistrict(districtCases []map[string]interface{}, client *mongo.Client) 
 			log.Fatal(err)
 		}
 	}
-}
+} */
