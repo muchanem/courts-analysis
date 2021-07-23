@@ -213,6 +213,7 @@ func getOldScotus(scotusReference map[string]string, path string, courtReference
 	if err != nil {
 		log.Fatal(err)
 	}
+	Lines:
 	for _, line := range lines {
 		header := lines[0]
 		
@@ -281,6 +282,10 @@ func getOldScotus(scotusReference map[string]string, path string, courtReference
 				case 1:
 					courtReference[scotusReference[line[0]]]["votes"].(map[int]map[string]interface{})[int(justice)][header[53+k]] = v 
 				}	
+			}
+			if courtReference[scotusReference[line[0]]]["votes"].(map[int]map[string]interface{})[int(justice)]["vote"] == nil {
+				delete(courtReference, scotusReference[line[0]])
+				continue Lines
 			}
 		}
 	n++
