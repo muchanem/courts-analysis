@@ -645,7 +645,7 @@ func attachScotus(scotusJudgeReference map[int64]string, scotusReference map[str
 							}
 						} 
 					} 
-					fmt.Println("No opinion found, judge: " + values["justice"].(string) + " case: " + matchedCase["usCite"].(string))
+					fmt.Println("No opinion found, judge: " + strconv.Itoa(int(values["justice"].(int64))) + " case: " + matchedCase["usCite"].(string))
 				} 
 		}
 		return scotusJudgeReference, scotusReference
