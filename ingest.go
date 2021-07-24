@@ -70,7 +70,6 @@ func main() {
 	}
 
 	scotusCaseReference, circuitCaseReference, districtCaseReference  = attachOpinions("./data/us_text_20200604/data/data.jsonl", scotusJudgeReference, scotusCaseReference, circuitJudgeReference, circuitCaseReference, districtCaseReference)
-	fmt.Println("complete")	
 	sendScotus(scotusCaseReference, client)
 	sendCircuit(circuitCaseReference, client)
 	sendDistrict(districtCaseReference, client)
@@ -895,7 +894,6 @@ func attachOpinions(path string, scotusJudgeReference map[int64]string, scotusRe
 }
 
 func sendScotus(scotusCaseReference map[string]map[string]interface{}, client *mongo.Client) {
-	return
 	db := client.Database("scotus")	
 	for _, c := range scotusCaseReference {
 		for _, o := range c["votes"].(map[int]map[string]interface{}) {
@@ -904,6 +902,9 @@ func sendScotus(scotusCaseReference map[string]map[string]interface{}, client *m
 				vote[k] = b
 			}
 			delete(vote, "votes")	
+			if vote["justice"] == nil {
+				continue
+			}
 			coll := db.Collection(strconv.Itoa(int(vote["justice"].(int64))))
 			_, err := coll.InsertOne(context.TODO(), vote)
 			if err != nil {
@@ -925,6 +926,9 @@ func sendCircuit(circuitCaseReference map[[2]string]map[string]interface{}, clie
 				vote[k]	= b
 			}
 			delete(vote, "votes")
+			if vote["code"] == nil {
+				continue
+			}
 			coll := db.Collection(strconv.Itoa(int(vote["code"].(int64))))
 			_, err := coll.InsertOne(context.TODO(), vote)
 			if err != nil {
@@ -935,8 +939,11 @@ func sendCircuit(circuitCaseReference map[[2]string]map[string]interface{}, clie
 }
 
 func sendDistrict(districtCaseReference map[[2]string]map[string]interface{}, client *mongo.Client) {
-	db := client.Database("admin")	
+	db := client.Database("district")	
 	for _, c := range districtCaseReference {
+		if c["judge"] == nil {
+			continue
+		}
 		coll := db.Collection(strconv.Itoa(int(c["judge"].(int64))))
 		_, err := coll.InsertOne(context.TODO(), c)
 		if err != nil {
